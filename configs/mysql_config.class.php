@@ -2,10 +2,10 @@
 
 class MysqlConfig {
 
-    const SERVEUR = 'localhost';
-    const BASE = 'bdd_trhairdesign';
-    const UTILISATEUR = 'root';
-    const MOT_DE_PASSE = '';
+    const SERVEUR = 'sql112.byethost15.com';
+    const BASE = 'b15_39567149_bdd_trhairdesign';
+    const UTILISATEUR = 'b15_39567149';
+    const MOT_DE_PASSE = 'Cetintas05**';
 }
 
 ?>

@@ -1,13 +1,37 @@
 <?php if (!empty(VariablesGlobales::$lesHoraires)) { ?>
-    <?php foreach (VariablesGlobales::$lesHoraires as $index => $horaire) { ?>
-        <li class="horaire-item">
-            <label for="nomJour<?php echo $index; ?>" class="horaire-label"><?php echo $horaire->idHoraire; ?></label> :
-
-            <!-- Affichage des horaires pour chaque jour -->
-            <p>Matin: <?php echo $horaire->heureOuvertureMatin . " - " . $horaire->heureFermetureMatin; ?></p>
-            <p>Après-midi: <?php echo $horaire->heureOuvertureAprem . " - " . $horaire->heureFermetureAprem; ?></p>
-        </li>
-    <?php } ?>
+    <div class="horaires-list">
+        <?php 
+            $jours = [
+                1 => 'Lundi',
+                2 => 'Mardi', 
+                3 => 'Mercredi',
+                4 => 'Jeudi',
+                5 => 'Vendredi',
+                6 => 'Samedi',
+                7 => 'Dimanche'
+            ];
+        ?>
+        <?php foreach (VariablesGlobales::$lesHoraires as $horaire) { ?>
+            <div class="horaire-item">
+                <strong><?php echo isset($jours[$horaire->idJour]) ? $jours[$horaire->idJour] : 'Jour ' . $horaire->idJour; ?> :</strong>
+                <span class="horaire-heures">
+                    <?php 
+                        $affichage = [];
+                        if (!empty($horaire->heureOuvertureMatin) && !empty($horaire->heureFermetureMatin)) {
+                            $affichage[] = $horaire->heureOuvertureMatin . " - " . $horaire->heureFermetureMatin;
+                        }
+                        if (!empty($horaire->heureOuvertureAprem) && !empty($horaire->heureFermetureAprem)) {
+                            $affichage[] = $horaire->heureOuvertureAprem . " - " . $horaire->heureFermetureAprem;
+                        }
+                        echo $affichage ? implode(' / ', $affichage) : '<span class="ferme">Fermé</span>';
+                    ?>
+                </span>
+            </div>
+        <?php } ?>
+    </div>
 <?php } else { ?>
-    <p>Aucun horaire trouvé.</p>
+    <div class="no-horaires">
+        <i class="fas fa-clock"></i>
+        <p>Aucun horaire disponible.</p>
+    </div>
 <?php } ?>

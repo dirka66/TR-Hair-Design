@@ -49,10 +49,14 @@ class GestionProduits {
     }
 
     public static function getLesProduits() {
-
         self::seConnecter();
 
-        self::$requete = "SELECT * FROM produit;";
+        // Requête avec jointure pour récupérer les informations de famille
+        self::$requete = "SELECT p.*, f.nomFamille, f.couleur as famille_couleur, f.icone as famille_icone 
+                         FROM produit p 
+                         LEFT JOIN famille f ON p.idFamille = f.idFamille 
+                         ORDER BY p.position ASC, p.nomProduit ASC";
+        
         self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
         self::$pdoStResults->execute();
         self::$resultat = self::$pdoStResults->fetchAll();
@@ -171,22 +175,4 @@ class GestionProduits {
 
     // </editor-fold>  
 }
-
-//Tests
-
-//GestionProduits::seConnecter();
-//var_dump(GestionProduits::getLesProduits());
-
-//$lesProduits = GestionProduits::getLesProduits();
-//foreach($lesProduits as $produit){
-//    echo $produit->nomProduit;
-//}
-
-//$lesCategories = GestionCategorie::getCategorieById(1);
-//var_dump($lesCategories);
-
-//$lesCategories = GestionCategorie::ajouterCategorie('$nomProduit');
-//var_dump($lesCategories);
-
-//$lesCategories = GestionCategorie::supprimerCategorie('$nomProduit');
-//var_dump($lesCategories);
+?>

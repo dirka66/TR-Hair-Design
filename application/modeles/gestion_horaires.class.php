@@ -16,9 +16,7 @@ class GestionHoraires {
      * @var PDOStatement
      */
     private static $pdoStResults = null;
-    //private static $pdoStVerification = null;
     private static $requete = ""; //texte de la requête
-    //private static $requeteVerification = "";
     private static $resultat = null; //résultat de la requête
 
     // </editor-fold>
@@ -36,7 +34,7 @@ class GestionHoraires {
                 self::$pdoCnxBase->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_OBJ);
                 self::$pdoCnxBase->query("SET CHARACTER SET utf8");
             } catch (Exception $e) {
-                // l’objet pdoCnxBase a généré automatiquement un objet de type Exception
+                // l'objet pdoCnxBase a généré automatiquement un objet de type Exception
                 echo 'Erreur : ' . $e->getMessage() . '<br />'; // méthode de la classe Exception
                 echo 'Code : ' . $e->getCode(); // méthode de la classe Exception                    
             }
@@ -48,19 +46,26 @@ class GestionHoraires {
         //si on n'appelle pas la méthode, la déconnexion a lieu en fin de script
     }
 
+    /**
+     * Récupère tous les horaires
+     */
     public static function getLesHoraires() {
         self::seConnecter();
 
         self::$requete = "
         SELECT 
             idHoraire, 
+            jour,
+            numeroJour,
             DATE_FORMAT(heureOuvertureMatin, '%H:%i') AS heureOuvertureMatin, 
             DATE_FORMAT(heureFermetureMatin, '%H:%i') AS heureFermetureMatin, 
             DATE_FORMAT(heureOuvertureAprem, '%H:%i') AS heureOuvertureAprem, 
             DATE_FORMAT(heureFermetureAprem, '%H:%i') AS heureFermetureAprem, 
-            ferme 
-        FROM horaire;
-    ";
+            ferme,
+            pauseMidi
+        FROM horaire
+        ORDER BY numeroJour ASC;
+        ";
         self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
         self::$pdoStResults->execute();
         self::$resultat = self::$pdoStResults->fetchAll();
@@ -70,17 +75,33 @@ class GestionHoraires {
         return self::$resultat;
     }
 
-// Méthode pour récupérer la connexion à la base de données
+    /**
+     * Récupère la connexion à la base de données
+     */
     public static function getDB() {
         // Appeler la méthode de connexion si elle n'a pas été faite
         self::seConnecter();
         return self::$pdoCnxBase; // Retourne la connexion
     }
 
+    /**
+     * Récupère un horaire par son ID
+     */
     public static function getHoraireById($idHoraire) {
         self::seConnecter();
 
-        self::$requete = "SELECT idHoraire, DATE_FORMAT(heureOuvertureMatin, '%H:%i') AS heureOuvertureMatin, DATE_FORMAT(heureFermetureMatin, '%H:%i') AS heureFermetureMatin, DATE_FORMAT(heureOuvertureAprem, '%H:%i') AS heureOuvertureAprem, DATE_FORMAT(heureFermetureAprem, '%H:%i') AS heureFermetureAprem FROM horaire WHERE idHoraire =:idHoraire";
+        self::$requete = "SELECT 
+            idHoraire, 
+            jour,
+            numeroJour,
+            DATE_FORMAT(heureOuvertureMatin, '%H:%i') AS heureOuvertureMatin, 
+            DATE_FORMAT(heureFermetureMatin, '%H:%i') AS heureFermetureMatin, 
+            DATE_FORMAT(heureOuvertureAprem, '%H:%i') AS heureOuvertureAprem, 
+            DATE_FORMAT(heureFermetureAprem, '%H:%i') AS heureFermetureAprem,
+            ferme,
+            pauseMidi
+        FROM horaire 
+        WHERE idHoraire = :idHoraire";
 
         self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
         self::$pdoStResults->bindValue('idHoraire', $idHoraire);
@@ -92,107 +113,120 @@ class GestionHoraires {
         return self::$resultat;
     }
 
-    public function modifierLesHoraires() {
-        if (isset($_POST['modifier'])) {
-            // Récupération des données du formulaire
-            $idHoraires = $_POST['idHoraire'];
-
-            // Valeurs pour chaque jour de la semaine
-            $fermeLundi = isset($_POST['fermeLundi']) ? 1 : 0;
-            $fermeMardi = isset($_POST['fermeMardi']) ? 1 : 0;
-            $fermeMercredi = isset($_POST['fermeMercredi']) ? 1 : 0;
-            $fermeJeudi = isset($_POST['fermeJeudi']) ? 1 : 0;
-            $fermeVendredi = isset($_POST['fermeVendredi']) ? 1 : 0;
-            $fermeSamedi = isset($_POST['fermeSamedi']) ? 1 : 0;
-            $fermeDimanche = isset($_POST['fermeDimanche']) ? 1 : 0;
-
-            // Récupération des horaires
-            $ouvertureMatin = $_POST['ouvertureMatin'];
-            $fermetureMatin = $_POST['fermetureMatin'];
-            $ouvertureAprem = $_POST['ouvertureAprem'];
-            $fermetureAprem = $_POST['fermetureAprem'];
-
-            foreach ($idHoraires as $index => $idHoraire) {
-                // Mettre à jour les horaires de chaque jour avec leur propre statut de fermeture
-                $sql = "UPDATE horaire SET
-                    heureOuvertureMatin = :ouvertureMatin,
-                    heureFermetureMatin = :fermetureMatin,
-                    heureOuvertureAprem = :ouvertureAprem,
-                    heureFermetureAprem = :fermetureAprem,
-                    fermeLundi = :fermeLundi,
-                    fermeMardi = :fermeMardi,
-                    fermeMercredi = :fermeMercredi,
-                    fermeJeudi = :fermeJeudi,
-                    fermeVendredi = :fermeVendredi,
-                    fermeSamedi = :fermeSamedi,
-                    fermeDimanche = :fermeDimanche
+    /**
+     * Met à jour un horaire
+     */
+    public static function updateHoraire($idHoraire, $heureOuvertureMatin, $heureFermetureMatin, $heureOuvertureAprem, $heureFermetureAprem, $ferme) {
+        try {
+            // Récupérer la connexion à la base de données
+            $pdo = self::getDB();
+            
+            $requete = "UPDATE horaire SET 
+                heureOuvertureMatin = :ouvertureMatin, 
+                heureFermetureMatin = :fermetureMatin, 
+                heureOuvertureAprem = :ouvertureAprem, 
+                heureFermetureAprem = :fermetureAprem, 
+                ferme = :ferme 
                 WHERE idHoraire = :idHoraire";
-
-                $stmt = self::getDB()->prepare($sql);
-                $stmt->execute([
-                    ':ouvertureMatin' => $ouvertureMatin[$index] ?? null,
-                    ':fermetureMatin' => $fermetureMatin[$index] ?? null,
-                    ':ouvertureAprem' => $ouvertureAprem[$index] ?? null,
-                    ':fermetureAprem' => $fermetureAprem[$index] ?? null,
-                    ':fermeLundi' => $fermeLundi,
-                    ':fermeMardi' => $fermeMardi,
-                    ':fermeMercredi' => $fermeMercredi,
-                    ':fermeJeudi' => $fermeJeudi,
-                    ':fermeVendredi' => $fermeVendredi,
-                    ':fermeSamedi' => $fermeSamedi,
-                    ':fermeDimanche' => $fermeDimanche,
-                    ':idHoraire' => $idHoraire
-                ]);
-            }
-
-            header('Location: index.php?controleur=Horaires&action=modifierLesHoraires');
-            exit;
+                
+            $stmt = $pdo->prepare($requete);
+            $result = $stmt->execute([
+                ':ouvertureMatin' => $heureOuvertureMatin,
+                ':fermetureMatin' => $heureFermetureMatin,
+                ':ouvertureAprem' => $heureOuvertureAprem,
+                ':fermetureAprem' => $heureFermetureAprem,
+                ':ferme' => $ferme,
+                ':idHoraire' => $idHoraire
+            ]);
+            
+            return $result;
+        } catch (Exception $e) {
+            error_log("Erreur updateHoraire: " . $e->getMessage());
+            return false;
         }
     }
 
-    public static function getNbProduits() {
-        self::seConnecter();
-
-        self::$requete = "SELECT Count(*) AS nbProduits FROM produit";
-        self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
-        self::$pdoStResults->execute();
-        self::$resultat = self::$pdoStResults->fetch();
-
-        self::$pdoStResults->closeCursor();
-
-        return self::$resultat->nbCategories;
+    /**
+     * Met à jour un horaire avec gestion d'erreur améliorée
+     */
+    public static function updateHoraireWithErrorHandling($idHoraire, $heureOuvertureMatin, $heureFermetureMatin, $heureOuvertureAprem, $heureFermetureAprem, $ferme) {
+        try {
+            $pdo = self::getDB();
+            
+            $requete = "UPDATE horaire SET 
+                heureOuvertureMatin = :ouvertureMatin, 
+                heureFermetureMatin = :fermetureMatin, 
+                heureOuvertureAprem = :ouvertureAprem, 
+                heureFermetureAprem = :fermetureAprem, 
+                ferme = :ferme 
+                WHERE idHoraire = :idHoraire";
+                
+            $stmt = $pdo->prepare($requete);
+            $result = $stmt->execute([
+                ':ouvertureMatin' => $heureOuvertureMatin,
+                ':fermetureMatin' => $heureFermetureMatin,
+                ':ouvertureAprem' => $heureOuvertureAprem,
+                ':fermetureAprem' => $heureFermetureAprem,
+                ':ferme' => $ferme,
+                ':idHoraire' => $idHoraire
+            ]);
+            
+            if (!$result) {
+                $errorInfo = $stmt->errorInfo();
+                throw new Exception("Erreur SQL: " . implode(", ", $errorInfo));
+            }
+            
+            return true;
+        } catch (Exception $e) {
+            error_log("Erreur updateHoraireWithErrorHandling: " . $e->getMessage());
+            throw $e;
+        }
     }
 
-    public static function updateHoraire($idHoraire, $heureOuvertureMatin, $heureFermetureMatin, $heureOuvertureAprem, $heureFermetureAprem, $fermeLundi) {
-        // Récupérer la connexion à la base de données
-        $pdo = self::getDB();
-
-        // Exemple d'exécution d'une requête UPDATE
-        $requete = "UPDATE horaire SET heureOuvertureMatin = ?, heureFermetureMatin = ?, heureOuvertureAprem = ?, heureFermetureAprem = ?, ferme = ? WHERE idHoraire = ?";
-        $stmt = $pdo->prepare($requete);
-        $stmt->execute([$heureOuvertureMatin, $heureFermetureMatin, $heureOuvertureAprem, $heureFermetureAprem, $fermeLundi, $idHoraire]);
+    /**
+     * Récupère les statistiques des horaires
+     */
+    public static function getStatistiquesHoraires() {
+        self::seConnecter();
+        
+        $stats = new stdClass();
+        
+        // Total des jours
+        self::$requete = "SELECT COUNT(*) as total FROM horaire";
+        self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
+        self::$pdoStResults->execute();
+        $resultat = self::$pdoStResults->fetch();
+        $stats->totalJours = $resultat->total;
+        
+        // Jours ouverts
+        self::$requete = "SELECT COUNT(*) as ouverts FROM horaire WHERE ferme = 0";
+        self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
+        self::$pdoStResults->execute();
+        $resultat = self::$pdoStResults->fetch();
+        $stats->joursOuverts = $resultat->ouverts;
+        
+        // Jours fermés
+        self::$requete = "SELECT COUNT(*) as fermes FROM horaire WHERE ferme = 1";
+        self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
+        self::$pdoStResults->execute();
+        $resultat = self::$pdoStResults->fetch();
+        $stats->joursFermes = $resultat->fermes;
+        
+        // Heures moyennes par jour (calcul approximatif)
+        self::$requete = "SELECT AVG(
+            TIMESTAMPDIFF(HOUR, heureOuvertureMatin, heureFermetureMatin) +
+            TIMESTAMPDIFF(HOUR, heureOuvertureAprem, heureFermetureAprem)
+        ) as heuresMoyennes FROM horaire WHERE ferme = 0";
+        self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
+        self::$pdoStResults->execute();
+        $resultat = self::$pdoStResults->fetch();
+        $stats->heuresMoyennes = round($resultat->heuresMoyennes ?? 0, 1);
+        
+        self::$pdoStResults->closeCursor();
+        
+        return $stats;
     }
 
     // </editor-fold>  
 }
-
-//Tests
-
-//GestionProduits::seConnecter();
-//var_dump(GestionProduits::getLesProduits());
-
-//$lesProduits = GestionProduits::getLesProduits();
-//foreach($lesProduits as $produit){
-//    echo $produit->nomProduit;
-//}
-
-//$lesCategories = GestionCategorie::getCategorieById(1);
-//var_dump($lesCategories);
-
-//$lesHoraires = GestionHoraires::modifierHoraire('Lundi', '09:10:00', '10:10:00', '15:05:00', '19:15:00');
-//var_dump($lesHoraires);
-//$lesCategories = GestionCategorie::ajouterCategorie('$nomProduit');
-//var_dump($lesCategories);
-
-//$lesCategories = GestionCategorie::supprimerCategorie('$nomProduit');
-//var_dump($lesCategories);
+?>

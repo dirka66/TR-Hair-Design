@@ -37,7 +37,7 @@ class GestionInformations {
                 self::$pdoCnxBase->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_OBJ);
                 self::$pdoCnxBase->query("SET CHARACTER SET utf8");
             } catch (Exception $e) {
-                // l’objet pdoCnxBase a généré automatiquement un objet de type Exception
+                // l'objet pdoCnxBase a généré automatiquement un objet de type Exception
                 echo 'Erreur : ' . $e->getMessage() . '<br />'; // méthode de la classe Exception
                 echo 'Code : ' . $e->getCode(); // méthode de la classe Exception                    
             }
@@ -50,10 +50,9 @@ class GestionInformations {
     }
 
     public static function getLesInformations() {
-
         self::seConnecter();
 
-        self::$requete = "SELECT * FROM information;";
+        self::$requete = "SELECT * FROM information ORDER BY dateCreation DESC";
         self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
         self::$pdoStResults->execute();
         self::$resultat = self::$pdoStResults->fetchAll();
@@ -64,130 +63,164 @@ class GestionInformations {
     }
 
     /**
-     * Ajoute une ligne dans la table Catégorie
-     * @param type $libelleCateg Libellé de la Catégorie
+     * Ajoute une nouvelle information
+     * @param string $titre Titre de l'information
+     * @param string $contenu Contenu de l'information
+     * @param int $important Si l'information est importante (1) ou non (0)
+     * @return bool
      */
-    public static function ajouterProduit($position, $nomProduit, $prix, $unite, $idFamille) {
+    public static function ajouterInformation($titre, $contenu, $important = 0) {
         try {
             self::seConnecter();
 
-            self::$requete = "INSERT INTO produit (position, nomProduit, prix, unite, idFamille) VALUES (:position, :nomProduit, :prix, :unite, :idFamille)";
+            self::$requete = "INSERT INTO information (titreInformation, libelleInformation, important, dateCreation) VALUES (:titre, :contenu, :important, NOW())";
             self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
-            self::$pdoStResults->bindValue(':position', $position);
-            self::$pdoStResults->bindValue(':nomProduit', $nomProduit);
-            self::$pdoStResults->bindValue(':prix', $prix);
-            self::$pdoStResults->bindValue(':unite', $unite);
-            self::$pdoStResults->bindValue(':idFamille', $idFamille);
+            self::$pdoStResults->bindValue(':titre', $titre);
+            self::$pdoStResults->bindValue(':contenu', $contenu);
+            self::$pdoStResults->bindValue(':important', $important);
             self::$pdoStResults->execute();
 
-            // Vérifier si l'insertion a réussi
-            if (self::$pdoStResults->rowCount() > 0) {
-                return true; // L'insertion a réussi
-            } else {
-                return false; // Aucune ligne n'a été insérée, probablement une erreur
-            }
+            return self::$pdoStResults->rowCount() > 0;
         } catch (PDOException $e) {
-            // Gérer l'exception en affichant un message d'erreur ou en journalisant l'erreur
-            error_log("Erreur lors de l'ajout du produit : " . $e->getMessage());
-            return false; // Indiquer que l'ajout a échoué en raison de l'erreur
+            error_log("Erreur lors de l'ajout de l'information : " . $e->getMessage());
+            return false;
         }
     }
 
-    public static function supprimerProduit($idProduit) {
-
-        self::seConnecter();
-
-        self::$requete = "delete from produit where idProduit =:idProduit";
-        self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
-        self::$pdoStResults->bindValue('idProduit', $idProduit);
-        self::$pdoStResults->execute();
-
-        // Vérifier si l'insertion a réussi
-        if (self::$pdoStResults->rowCount() > 0) {
-            return true; // L'insertion a réussi
-        } else {
-            return false; // Aucune ligne n'a été insérée, probablement une erreur
-        }
-    }
-
-    public static function modifierProduit($idProduit, $positionNouvelle, $nomNouveau, $prixNouveau, $uniteNouvelle, $idFamilleNouvelle) {
-        self::seConnecter();
+    /**
+     * Supprime une information
+     * @param int $idInformation ID de l'information à supprimer
+     * @return bool
+     */
+    public static function supprimerInformation($idInformation) {
         try {
-            self::$requete = "update produit set postion=:positionNouvelle, nomProduit=:nomNouveau, prix=:prixNouveau, unite=:uniteNouvelle, idFamille=:idFamilleNouvelle where idProduit=:idProduit";
+            self::seConnecter();
+
+            self::$requete = "DELETE FROM information WHERE idInfo = :idInformation";
             self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
-            self::$pdoStResults->bindValue(':idProduit', $idProduit);
-            self::$pdoStResults->bindValue(':positionNouvelle', $positionNouvelle);
-            self::$pdoStResults->bindValue(':nomNouveau', $nomNouveau);
-            self::$pdoStResults->bindValue(':prixNouveau', $prixNouveau);
-            self::$pdoStResults->bindValue(':uniteNouvelle', $uniteNouvelle);
-            self::$pdoStResults->bindValue(':idFamilleNouvelle', $idFamilleNouvelle);
+            self::$pdoStResults->bindValue(':idInformation', $idInformation);
             self::$pdoStResults->execute();
 
-            // Vérifier si la modification a réussi
-            if (self::$pdoStResults->rowCount() > 0) {
-                return true; // La modification a réussi
-            } else {
-                return false; // Aucune ligne n'a été modifiée, probablement une erreur
-            }
+            return self::$pdoStResults->rowCount() > 0;
         } catch (PDOException $e) {
-            // Gérer l'exception
-            if ($e->getCode() == '23000') { // Code d'erreur pour violation de contrainte d'unicité
-                // Le nouveau libellé est en conflit avec un libellé existant
-                return false;
-            } else {
-                // Autre erreur
-                error_log("Erreur lors de la modification du produit : " . $e->getMessage());
-                return false; // Indiquer que la modification a échoué en raison de l'erreur
-            }
+            error_log("Erreur lors de la suppression de l'information : " . $e->getMessage());
+            return false;
         }
     }
 
-    public static function getProduitById($idProduit) {
-        self::seConnecter();
+    /**
+     * Modifie une information existante
+     * @param int $idInformation ID de l'information
+     * @param string $titre Nouveau titre
+     * @param string $contenu Nouveau contenu
+     * @param int $important Si l'information est importante (1) ou non (0)
+     * @return bool
+     */
+    public static function modifierInformation($idInformation, $titre, $contenu, $important = 0) {
+        try {
+            self::seConnecter();
 
-        self::$requete = "SELECT * FROM produit WHERE idProduit =:idProduit";
+            self::$requete = "UPDATE information SET titreInformation = :titre, libelleInformation = :contenu, important = :important, dateModification = NOW() WHERE idInfo = :idInformation";
+            self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
+            self::$pdoStResults->bindValue(':idInformation', $idInformation);
+            self::$pdoStResults->bindValue(':titre', $titre);
+            self::$pdoStResults->bindValue(':contenu', $contenu);
+            self::$pdoStResults->bindValue(':important', $important);
+            self::$pdoStResults->execute();
 
-        self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
-        self::$pdoStResults->bindValue('idProduit', $idProduit);
-        self::$pdoStResults->execute();
-        self::$resultat = self::$pdoStResults->fetch();
-
-        self::$pdoStResults->closeCursor();
-
-        return self::$resultat;
+            return self::$pdoStResults->rowCount() > 0;
+        } catch (PDOException $e) {
+            error_log("Erreur lors de la modification de l'information : " . $e->getMessage());
+            return false;
+        }
     }
 
-    public static function getNbProduits() {
-        self::seConnecter();
+    /**
+     * Récupère une information par son ID
+     * @param int $idInformation ID de l'information
+     * @return object|null
+     */
+    public static function getInformationById($idInformation) {
+        try {
+            self::seConnecter();
 
-        self::$requete = "SELECT Count(*) AS nbProduits FROM produit";
-        self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
-        self::$pdoStResults->execute();
-        self::$resultat = self::$pdoStResults->fetch();
+            self::$requete = "SELECT * FROM information WHERE idInfo = :idInformation";
+            self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
+            self::$pdoStResults->bindValue(':idInformation', $idInformation);
+            self::$pdoStResults->execute();
+            self::$resultat = self::$pdoStResults->fetch();
 
-        self::$pdoStResults->closeCursor();
+            self::$pdoStResults->closeCursor();
+            return self::$resultat;
+        } catch (PDOException $e) {
+            error_log("Erreur lors de la récupération de l'information : " . $e->getMessage());
+            return null;
+        }
+    }
 
-        return self::$resultat->nbCategories;
+    /**
+     * Récupère le nombre total d'informations
+     * @return int
+     */
+    public static function getNbInformations() {
+        try {
+            self::seConnecter();
+
+            self::$requete = "SELECT COUNT(*) AS nbInformations FROM information";
+            self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
+            self::$pdoStResults->execute();
+            self::$resultat = self::$pdoStResults->fetch();
+
+            self::$pdoStResults->closeCursor();
+            return self::$resultat->nbInformations ?? 0;
+        } catch (PDOException $e) {
+            error_log("Erreur lors du comptage des informations : " . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Récupère les statistiques des informations
+     * @return object
+     */
+    public static function obtenirStatistiques() {
+        try {
+            self::seConnecter();
+
+            $stats = new stdClass();
+            
+            // Total des informations
+            self::$requete = "SELECT COUNT(*) as total FROM information";
+            self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
+            self::$pdoStResults->execute();
+            $result = self::$pdoStResults->fetch();
+            $stats->totalInformations = $result->total ?? 0;
+
+            // Informations importantes
+            self::$requete = "SELECT COUNT(*) as importantes FROM information WHERE important = 1";
+            self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
+            self::$pdoStResults->execute();
+            $result = self::$pdoStResults->fetch();
+            $stats->informationsImportantes = $result->importantes ?? 0;
+
+            // Informations récentes (moins de 7 jours)
+            self::$requete = "SELECT COUNT(*) as recentes FROM information WHERE dateCreation >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+            self::$pdoStResults = self::$pdoCnxBase->prepare(self::$requete);
+            self::$pdoStResults->execute();
+            $result = self::$pdoStResults->fetch();
+            $stats->informationsRecentes = $result->recentes ?? 0;
+
+            return $stats;
+        } catch (PDOException $e) {
+            error_log("Erreur lors de la récupération des statistiques : " . $e->getMessage());
+            $stats = new stdClass();
+            $stats->totalInformations = 0;
+            $stats->informationsImportantes = 0;
+            $stats->informationsRecentes = 0;
+            return $stats;
+        }
     }
 
     // </editor-fold>  
 }
-
-//Tests
-
-//GestionProduits::seConnecter();
-//var_dump(GestionProduits::getLesProduits());
-
-//$lesProduits = GestionProduits::getLesProduits();
-//foreach($lesProduits as $produit){
-//    echo $produit->nomProduit;
-//}
-
-//$lesCategories = GestionCategorie::getCategorieById(1);
-//var_dump($lesCategories);
-
-//$lesCategories = GestionCategorie::ajouterCategorie('$nomProduit');
-//var_dump($lesCategories);
-
-//$lesCategories = GestionCategorie::supprimerCategorie('$nomProduit');
-//var_dump($lesCategories);
+?>
